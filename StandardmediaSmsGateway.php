@@ -68,7 +68,7 @@ class StandardmediaSmsGateway
             'sender' => $sender,
             'sms' => [
                 [
-                    'msidn' => $phone,
+                    'msisdn' => $phone,
                     'message' => $message,
                     'requestid' => uniqid(), // Generate a unique request ID
                     'schedule' => null, // You can set scheduled time if needed
