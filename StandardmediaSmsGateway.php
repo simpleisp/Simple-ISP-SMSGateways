@@ -2,7 +2,7 @@
 
 namespace App\Gateways\UserDefined;
 
-class StandardMediaSmsGateway
+class StandardmediaSmsGateway
 {
     /**
      * Set information about the Standard Media SMS gateway.
