@@ -2,6 +2,8 @@
 
 namespace App\Gateways\UserDefined;
 
+use Illuminate\Support\Facades\Log;
+
 class HostpinnacleSmsGateway
 {
     /**
@@ -11,6 +13,8 @@ class HostpinnacleSmsGateway
      */
     public static function getGatewayInfo()
     {
+        Log::info('Retrieving gateway information.');
+        
         return [
             'name' => 'HostPinnacle SMS Gateway',
             'description' => 'A gateway for sending SMS via HostPinnacle API.',
@@ -26,6 +30,8 @@ class HostpinnacleSmsGateway
      */
     public static function getConfigParameters()
     {
+        Log::info('Retrieving configuration parameters.');
+        
         return [
             'username' => [
                 'label' => 'Username',
@@ -63,6 +69,8 @@ class HostpinnacleSmsGateway
      */
     public function sendSms($phone, $message)
     {
+        Log::info("Sending SMS to $phone: $message");
+
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => "https://smsportal.hostpinnacle.co.ke/SMSApi/send",
@@ -77,7 +85,7 @@ class HostpinnacleSmsGateway
                 'password' => setting("hostpinnacle_password"),
                 'sendMethod' => 'quick',
                 'mobile' => $phone,
-                'msg' => $message,
+                'msg' => urlencode($message),
                 'senderid' => setting("hostpinnacle_sender_id"),
                 'msgType' => 'text',
                 'duplicatecheck' => 'true',
@@ -96,9 +104,11 @@ class HostpinnacleSmsGateway
         curl_close($curl);
 
         if ($err) {
-            return ['status' => 'error', 'message' => "cURL Error #: $err"];
+            Log::error("cURL Error: $err");
+            return ['status' => 'error', 'message' => "cURL Error: $err"];
         } else {
-            return ['status' => 'success', 'response' => json_decode($response, true)];
+            Log::info("SMS sent successfully to $phone");
+            return ['status' => 'success', 'message' => 'Message sent successfully!'];
         }
     }
 
@@ -109,6 +119,8 @@ class HostpinnacleSmsGateway
      */
     public function hostpinnacleSmsBalance()
     {
+        Log::info('Fetching SMS balance.');
+
         $curl = curl_init();
 
         curl_setopt_array($curl, array(
@@ -136,20 +148,21 @@ class HostpinnacleSmsGateway
         curl_close($curl);
 
         if ($err) {
+            Log::error("cURL Error: $err");
             return null; // Return null on error
         } else {
             $responseData = json_decode($response, true);
             if (isset($responseData['response']['status']) && $responseData['response']['status'] === 'success') {
                 $balance = $responseData['response']['account']['smsBalance'];
+                Log::info("SMS balance fetched successfully: $balance");
                 return [
                     'currency' => 'KES', // Replace 'XXX' with the appropriate currency code
                     'value' => $balance,
                 ];
             } else {
+                Log::error("Failed to fetch SMS balance.");
                 return null; // Return null if balance retrieval is not successful
             }
         }
     }
-
-
 }
