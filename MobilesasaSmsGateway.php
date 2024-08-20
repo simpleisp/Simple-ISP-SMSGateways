@@ -67,7 +67,7 @@ class MobilesasaSmsGateway
 
         // Set the cURL options
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.mobilesasa.com/v1/send/bulk',  // API URL
+            CURLOPT_URL => 'https://api.mobilesasa.com/v2/send/bulk',  // API URL
             CURLOPT_RETURNTRANSFER => true,    // Return the result on success, FALSE on failure
             CURLOPT_ENCODING => '',    // Empty '' means set the encoding to identity (no compression / decompression)
             CURLOPT_MAXREDIRS => 10,   // Maximum amount of HTTP redirections to follow
@@ -127,7 +127,7 @@ class MobilesasaSmsGateway
 
         // Set the cURL options
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.mobilesasa.com/v1/get-balance', // API endpoint to retrieve balance
+            CURLOPT_URL => 'https://api.mobilesasa.com/v2/get-balance', // API endpoint to retrieve balance
             CURLOPT_RETURNTRANSFER => true, // If it is set to TRUE, curl_exec() will return the result on success, FALSE on failure
             CURLOPT_ENCODING => '', // An empty string means no encoding
             CURLOPT_MAXREDIRS => 10, // The maximum amount of HTTP redirections to follow
