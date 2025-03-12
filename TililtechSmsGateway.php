@@ -49,14 +49,14 @@ class TililtechSmsGateway
     }
 
     /**
-    /**
      * Sends an SMS using the Tililtech API.
      *
      * @param string $phone The phone number to send the SMS to.
      * @param string $message The message to send.
+     * @param string|null $scheduleTime Optional. The time to send the message (format: 'Y-m-d H:i:s'). If null, the message is sent immediately.
      * @return array
      */
-    public function sendSms($phone, $message)
+    public function sendSms($phone, $message, $scheduleTime = null)
     {
         $apiUrl = 'https://api.tililtech.com/sms/v3/sendsms';
         $apiKey = setting("tililtech_api_key");
@@ -64,13 +64,17 @@ class TililtechSmsGateway
 
         $requestData = [
             'api_key' => $apiKey,
-            'service_id' => 0,
+            'service' => 0, // Updated parameter name
             'mobile' => $phone,
             'response_type' => 'json',
             'shortcode' => $senderId,
             'message' => $message,
-            'date_send' => date('Y-m-d H:i:s'), // You can adjust this as needed
         ];
+
+        // Include 'date_send' only if a schedule time is provided
+        if (!empty($scheduleTime)) {
+            $requestData['date_send'] = $scheduleTime;
+        }
 
         $response = $this->makeRequest($apiUrl, $requestData);
 
@@ -88,17 +92,15 @@ class TililtechSmsGateway
         }
     }
 
-
-
     /**
      * Fetches the SMS balance for the Tililtech account.
      *
-     * @param string $apiKey The API key.
      * @return array|null An array with "currency" and "value" keys representing the currency code and balance value respectively, or null on error.
      */
-    public function tililtechSmsBalance($apiKey)
+    public function tililtechSmsBalance()
     {
         $apiUrl = 'https://api.tililtech.com/sms/v3/profile';
+        $apiKey = setting("tililtech_api_key");
 
         $requestData = [
             'api_key' => $apiKey,
@@ -106,15 +108,13 @@ class TililtechSmsGateway
 
         $response = $this->makeRequest($apiUrl, $requestData);
 
-        if (!isset($response[0]['wallet']['credit_balance'])) {
+        if (!isset($response['wallet']['credit_balance'])) {
             return null;
         }
 
-        $balance = $response[0]['wallet']['credit_balance'];
-
         return [
             'units' => 'KES', // Assuming Kenyan Shillings
-            'value' => $balance,
+            'value' => $response['wallet']['credit_balance'],
         ];
     }
 
