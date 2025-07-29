@@ -5,145 +5,200 @@ namespace App\Gateways\UserDefined;
 class MspaceSmsGateway
 {
     /**
-     * Get information about the Mspace SMS gateway.
+     * Set information about the MSPACE SMS gateway.
      *
      * @return array
      */
     public static function getGatewayInfo()
     {
         return [
-            'name' => 'Mspace SMS Gateway',
-            'description' => 'A gateway for sending SMS via Mspace API.',
+            'name' => 'MSPACE SMS Gateway',
+            'description' => 'A gateway for sending SMS via MSPACE API.',
             'author' => 'SimpleISP',
             'website' => 'https://simplux.africa',
         ];
     }
 
+    /**
+     * Set an array of configuration parameters for the form.
+     *
+     * @return array
+     */
     public static function getConfigParameters()
     {
         return [
             'gateway' => [
                 'label' => 'Gateway',
                 'type' => 'hidden',
-                'name' => 'mspace_gateway', 
+                'name' => 'mspace_gateway',
                 'value' => setting("mspace_gateway"),
             ],
             'username' => [
                 'label' => 'Username',
                 'type' => 'text',
-                'name' => 'mspace_username', 
-                'value' => setting('mspace_username'),
+                'name' => 'mspace_username',
+                'value' => setting("mspace_username"),
             ],
-            'password' => [
-                'label' => 'Password',
+            'apiKey' => [
+                'label' => 'API Key',
                 'type' => 'text',
-                'name' => 'mspace_password', 
-                'value' => setting('mspace_password'),
+                'name' => 'mspace_api_key',
+                'value' => setting("mspace_api_key"),
             ],
-            'sender_id' => [
+            'senderId' => [
                 'label' => 'Sender ID',
                 'type' => 'text',
-                'name' => 'mspace_sender_id', 
-                'value' => setting('mspace_sender_id'),
+                'name' => 'mspace_sender_id',
+                'value' => setting("mspace_sender_id"),
             ],
         ];
     }
-    
 
     /**
-     * Send SMS using the mspace API.
+     * Sends an SMS using the MSPACE API.
      *
-     * @return array An array containing the parameters to send sms.
+     * @param string $phone The phone number to send the SMS to.
+     * @param string $message The message to send.
+     * @return array
      */
     public function sendSms($phone, $message)
     {
-        // Get the Mspace username, password and sender ID from settings
-        $username = setting('mspace_username');
-        $password = setting('mspace_password');
-        $senderID = setting('mspace_sender_id');
+        // Get the necessary settings for the MSPACE API
+        $username = setting("mspace_username");
+        $apiKey = setting("mspace_api_key");
+        $senderId = setting("mspace_sender_id");
 
-        // Build the URL with username, password, senderID, recipient and message values
-        $url = 'http://www.mspace.co.ke/mspaceservice/wr/sms/sendtext/username=' . $username . '/password=' . $password . '/senderid=' . $senderID . '/recipient=' . $phone . '/message=' . rawurlencode($message);
+        $curl = curl_init();
 
-        // Initialize cURL session
-        $curl = curl_init($url);
+        // Format the request body as per MSPACE documentation
+        $postFields = json_encode([
+            'username'  => $username,
+            'senderId'  => $senderId,
+            'recipient' => $phone,
+            'message'   => $message,
+        ]);
 
-        // Set cURL option to return the response
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'https://api.mspace.co.ke/smsapi/v2/sendtext',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => $postFields,
+            CURLOPT_HTTPHEADER => array(
+                'apikey: ' . $apiKey,
+                'Content-Type: application/json'
+            ),
+        ));
 
-        // Execute the cURL request
         $response = curl_exec($curl);
-
-        // Close the cURL session
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $err = curl_error($curl);
         curl_close($curl);
 
-        // Check for errors
-        if ($response === false) {
-            return ['status' => 'error', 'message' => 'cURL error'];
-        } else {
-            $responseArray = json_decode($response, true);
-
-            if ($responseArray === null) {
-                return ['status' => 'error', 'message' => 'Could not parse API response'];
-            } elseif (isset($responseArray['status']) && $responseArray['status'] === 111) { // Here, check for the correct status code, 111
-                // Assume the message was sent successfully if no error was found
-                return ['status' => 'success', 'message' => 'Message sent successfully!', 'messageId' => $responseArray['statusDescription']];
-            } else {
-                // Handle the API error appropriately
-                return ['status' => 'error', 'message' => $responseArray['statusDescription'] ?? 'Unknown error'];
-            }
+        if ($err) {
+            return ['status' => 'error', 'message' => 'cURL Error: ' . $err];
         }
 
-        // If all else fails, return the raw response
-        return $response;
+        $responseData = json_decode($response, true);
+
+        if ($responseData === null) {
+            return ['status' => 'error', 'message' => 'Invalid JSON response from MSPACE API'];
+        }
+
+        try {
+            // Handle MSPACE specific response format
+            if ($httpCode == 200 && isset($responseData['message']) && is_array($responseData['message'])) {
+                $messageInfo = $responseData['message'][0]; // Get first message info
+                $status = $messageInfo['status'] ?? 0;
+                $statusDesc = $messageInfo['statusDescription'] ?? 'Unknown status';
+                
+                // Status 111 means message sent successfully for MSPACE
+                if ($status == 111 || strpos(strtolower($statusDesc), 'success') !== false) {
+                    return ['status' => 'success', 'message' => 'Message sent successfully!'];
+                } else {
+                    return ['status' => 'error', 'message' => $statusDesc];
+                }
+            } else {
+                $errorMessage = $responseData['error'] ?? $responseData['message'] ?? 'Unknown error from MSPACE API';
+                return ['status' => 'error', 'message' => $errorMessage];
+            }
+        } catch (Exception $e) {
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
     }
 
     /**
-     * Fetches account balance using the mspace API.
+     * Fetches the SMS balance for the MSPACE account.
      *
-     * @return array An array containing the balance information.
+     * @return array|null An array with "units" and "value" keys representing the currency code and balance value respectively, or null on error.
      */
-
     public function mspaceSmsBalance()
     {
-        // Retrieve the username and password from settings
-        $username = setting('mspace_username');
-        $password = setting('mspace_password');
+        // Get the necessary settings for the MSPACE API
+        $username = setting("mspace_username");
+        $apiKey = setting("mspace_api_key");
 
-        // Build the URL for the API request, including the username and password
-        $url = 'http://www.mspace.co.ke/mspaceservice/wr/sms/balance/username=' . $username . '/password=' . $password;
+        try {
+            $curl = curl_init();
 
-        // Initialize a cURL session
-        $ch = curl_init($url);
+            // Format the request body as per MSPACE documentation
+            $postFields = json_encode([
+                'username' => $username,
+            ]);
 
-        // Set the cURL option to return the result as a string
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => 'https://api.mspace.co.ke/smsapi/v2/balance',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => $postFields,
+                CURLOPT_HTTPHEADER => array(
+                    'apikey: ' . $apiKey,
+                    'Content-Type: application/json'
+                ),
+            ));
 
-        // Execute the cURL request
-        $response = curl_exec($ch);
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $err = curl_error($curl);
+            curl_close($curl);
 
-        // Close the cURL session
-        curl_close($ch);
-
-        // Check for errors in the cURL request
-        if ($response === false) {
-            $error = curl_error($ch);
-            // If there is an error, return it
-            return ['error' => $error];
-        } else {
-            // If the response contains 'HTTP Status 404', return an error indicating that balance couldn't be fetched
-            if (strpos($response, 'HTTP Status 404') !== false) {
-                return ['error' => 'Unable to fetch balance'];
+            if ($err) {
+                return null;
             }
-            // If the response starts with 'ERR', return the error message
-            elseif (substr($response, 0, 3) === 'ERR') {
-                return ['error' => $response];
-            } else {
-                // Otherwise, return the balance as a float with the assumed currency (Kenyan Shillings - KES)
-                $balance = floatval($response);
-                $currency = "KES"; // Assumed currency
-                return ['value' => $balance, 'units' => $currency];
+
+            // Handle MSPACE balance response - it returns just a number
+            if ($httpCode == 200) {
+                // Check if response is just a number (balance)
+                if (is_numeric($response)) {
+                    return [
+                        "units" => 'KES',
+                        "value" => floatval($response),
+                    ];
+                }
+                
+                // Fallback: try to parse as JSON
+                $responseData = json_decode($response, true);
+                if (isset($responseData['balance'])) {
+                    return [
+                        "units" => 'KES',
+                        "value" => floatval($responseData['balance']),
+                    ];
+                }
             }
+
+            return null;
+
+        } catch (Exception $e) {
+            return null;
         }
     }
 }
