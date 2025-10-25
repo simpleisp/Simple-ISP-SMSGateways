@@ -29,6 +29,12 @@ class BlessedtextsSmsGateway
     public static function getConfigParameters()
     {
         return [
+            'gateway' => [
+                'label' => 'Gateway',
+                'type' => 'hidden',
+                'name' => 'blessedtexts_gateway',
+                'value' => setting("blessedtexts_gateway"),
+            ],
             'apiKey' => [
                 'label' => 'API Key',
                 'type' => 'text',
